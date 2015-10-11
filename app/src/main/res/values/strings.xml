@@ -10,4 +10,8 @@
     <string name="loading">Loading please wait ...</string>
     <string name="login_error">Please check your credentials!!</string>
     <string name="select_course_subject_caption"><![CDATA[Select Course & Subject]]></string>
+    <string name="error">Error</string>
+    <string name="no_nfc">No NFC found on this device</string>
+    <string name="nfc_disabled">NFC is not enabled. Please go to the wireless settings to enable it.</string>
+    <string name="title_activity_read_card">ReadCardActivity</string>
 </resources>

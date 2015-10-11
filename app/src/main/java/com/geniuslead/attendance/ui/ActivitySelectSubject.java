@@ -1,5 +1,6 @@
 package com.geniuslead.attendance.ui;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -8,7 +9,6 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.Spinner;
-import android.widget.Toast;
 
 import com.geniuslead.attendance.R;
 import com.geniuslead.attendance.model.Course;
@@ -22,6 +22,7 @@ import java.util.Map;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 /**
  * Created by AJ on 10/3/15.
@@ -64,7 +65,7 @@ public class ActivitySelectSubject extends AppCompatActivity {
                 }
                 populateCourseSpinner(ud);
             } else {
-                Toast.makeText(this, R.string.login_error, Toast.LENGTH_LONG).show();
+                //Toast.makeText(this, R.string.login_error, Toast.LENGTH_LONG).show();
             }
         } catch (Throwable e) {
 
@@ -79,7 +80,7 @@ public class ActivitySelectSubject extends AppCompatActivity {
                 new AdapterView.OnItemSelectedListener() {
                     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                         MyData d = courseValues[position];
-                        Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
+                        //Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
                         populateSubjectSpinner(d.getValue(), ud);
                     }
 
@@ -115,7 +116,7 @@ public class ActivitySelectSubject extends AppCompatActivity {
                 new AdapterView.OnItemSelectedListener() {
                     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                         MyData d = subjectValues[position];
-                        Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
+                        //Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
                     }
 
                     public void onNothingSelected(AdapterView<?> parent) {
@@ -123,6 +124,12 @@ public class ActivitySelectSubject extends AppCompatActivity {
                     }
                 }
         );
+    }
+
+    @OnClick(R.id.ButtonSave)
+    public void saveButtonClicked() {
+        Intent i = new Intent(this, ReadCardActivity.class);
+        startActivity(i);
     }
 
     class MyData {

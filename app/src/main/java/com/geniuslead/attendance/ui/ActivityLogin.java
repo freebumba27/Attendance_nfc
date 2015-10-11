@@ -6,7 +6,7 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.text.InputFilter;
 import android.text.Spanned;
-import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -21,6 +21,7 @@ import com.google.gson.Gson;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 import de.greenrobot.event.EventBus;
 
 import static com.geniuslead.attendance.utils.ReuseableClass.haveNetworkConnection;
@@ -33,6 +34,8 @@ public class ActivityLogin extends AppCompatActivity {
     EditText EditTextCollegeId;
     @Bind(R.id.EditTextPassword)
     EditText EditTextPassword;
+    @Bind(R.id.buttonLogin)
+    Button buttonLogin;
 
     private String blockCharacterSet = "~!@#$%^&*()_-";
     private ProgressDialog progressDialog;
@@ -55,16 +58,37 @@ public class ActivityLogin extends AppCompatActivity {
         EditTextUserName.setFilters(new InputFilter[]{filter});
     }
 
-    public void goingScanning(View view) {
+    @OnClick(R.id.buttonLogin)
+    public void goingScanning() {
         if (haveNetworkConnection(this)) {
-            String url = "User?userName=" + EditTextUserName.getText() + "&password=" + EditTextPassword.getText() +
-                    "&collegeId=" + EditTextCollegeId.getText() + "&IMeid=" + ReuseableClass.getImeiNo(this);
-            MyApplication.getInstance().getJobManager().addJob(new LoginAuthenticationJob(url));
-            progressDialog = ProgressDialog.show(this, "", getString(R.string.loading), true);
+            if (validated()) {
+                String url = "User?userName=" + EditTextUserName.getText() + "&password=" + EditTextPassword.getText() +
+                        "&collegeId=" + EditTextCollegeId.getText() + "&IMeid=" + ReuseableClass.getImeiNo(this);
+                MyApplication.getInstance().getJobManager().addJob(new LoginAuthenticationJob(url));
+                progressDialog = ProgressDialog.show(this, "", getString(R.string.loading), true);
+           }
         }
-        //
         else
             Toast.makeText(this, R.string.error_internet_connection, Toast.LENGTH_LONG).show();
+    }
+
+    private boolean validated() {
+        if (EditTextUserName.getText().toString().trim().length() == 0) {
+            EditTextUserName.setError("All fields are mandatory");
+            EditTextUserName.requestFocus();
+            return false;
+        }
+        if (EditTextCollegeId.getText().toString().trim().length() == 0) {
+            EditTextCollegeId.setError("All fields are mandatory");
+            EditTextCollegeId.requestFocus();
+            return false;
+        }
+        if (EditTextPassword.getText().toString().trim().length() == 0) {
+            EditTextPassword.setError("All fields are mandatory");
+            EditTextPassword.requestFocus();
+            return false;
+        }
+        return true;
     }
 
     public void onEventMainThread(UserDetailsEvent.Success event) {
