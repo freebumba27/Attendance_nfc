@@ -36,6 +36,8 @@ public class ActivityLogin extends AppCompatActivity {
     EditText EditTextPassword;
     @Bind(R.id.buttonLogin)
     Button buttonLogin;
+    private static final int TIME_INTERVAL = 2000;
+    private long mBackPressed;
 
     private String blockCharacterSet = "~!@#$%^&*()_-";
     private ProgressDialog progressDialog;
@@ -132,5 +134,17 @@ public class ActivityLogin extends AppCompatActivity {
     public void onStop() {
         super.onStop();
         EventBus.getDefault().unregister(this);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis())
+        {
+            super.onBackPressed();
+            return;
+        }
+        else { Toast.makeText(getBaseContext(), getString(R.string.double_back_press_message), Toast.LENGTH_SHORT).show(); }
+
+        mBackPressed = System.currentTimeMillis();
     }
 }
