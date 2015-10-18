@@ -3,10 +3,12 @@ package com.geniuslead.attendance.ui;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.text.InputFilter;
 import android.text.Spanned;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -28,6 +30,7 @@ import static com.geniuslead.attendance.utils.ReuseableClass.haveNetworkConnecti
 
 public class ActivityLogin extends AppCompatActivity {
 
+    private static final int TIME_INTERVAL = 2000;
     @Bind(R.id.EditTextUserName)
     EditText EditTextUserName;
     @Bind(R.id.EditTextCollegeId)
@@ -36,7 +39,8 @@ public class ActivityLogin extends AppCompatActivity {
     EditText EditTextPassword;
     @Bind(R.id.buttonLogin)
     Button buttonLogin;
-    private static final int TIME_INTERVAL = 2000;
+    @Bind(R.id.checkBoxRememberMe)
+    CheckBox checkBoxRememberMe;
     private long mBackPressed;
 
     private String blockCharacterSet = "~!@#$%^&*()_-";
@@ -57,6 +61,14 @@ public class ActivityLogin extends AppCompatActivity {
         setContentView(R.layout.activity_login_screen);
         ButterKnife.bind(this);
 
+        if (!ReuseableClass.getFromPreference("userDetailsObject", this).equalsIgnoreCase("")) {
+            UserDetails userDetails = new Gson().fromJson(ReuseableClass.getFromPreference("userDetailsObject", this), UserDetails.class);
+            EditTextUserName.setText(userDetails.getUserName());
+            EditTextCollegeId.setText(userDetails.getCollegeId());
+            EditTextPassword.setText(userDetails.getPassword());
+            checkBoxRememberMe.setChecked(true);
+        }
+
         EditTextUserName.setFilters(new InputFilter[]{filter});
     }
 
@@ -68,9 +80,8 @@ public class ActivityLogin extends AppCompatActivity {
                         "&collegeId=" + EditTextCollegeId.getText() + "&IMeid=" + ReuseableClass.getImeiNo(this);
                 MyApplication.getInstance().getJobManager().addJob(new LoginAuthenticationJob(url));
                 progressDialog = ProgressDialog.show(this, "", getString(R.string.loading), true);
-           }
-        }
-        else
+            }
+        } else
             Toast.makeText(this, R.string.error_internet_connection, Toast.LENGTH_LONG).show();
     }
 
@@ -101,10 +112,14 @@ public class ActivityLogin extends AppCompatActivity {
             Boolean status = ud.getStatus();
 
             if (status) {
+                if (checkBoxRememberMe.isChecked())
+                    ReuseableClass.saveInPreference("userDetailsObject", new Gson().toJson(ud), ActivityLogin.this);
+                else
+                    ReuseableClass.saveInPreference("userDetailsObject", "", ActivityLogin.this);
+
                 Intent i = new Intent(this, ActivitySelectSubject.class);
                 i.putExtra("userDetailsObj", new Gson().toJson(ud));
                 startActivity(i);
-                finish();
             } else {
                 Toast.makeText(this, R.string.login_error, Toast.LENGTH_LONG).show();
             }
@@ -116,7 +131,7 @@ public class ActivityLogin extends AppCompatActivity {
     public void onEventMainThread(UserDetailsEvent.Fail event) {
         if (progressDialog != null) progressDialog.dismiss();
         if (event.getEx() != null) {
-            new android.support.v7.app.AlertDialog.Builder(this)
+            new AlertDialog.Builder(this)
                     .setIconAttribute(android.R.attr.alertDialogIcon)
                     .setMessage(event.getEx().getMessage())
                     .setPositiveButton("OK", null)
@@ -138,12 +153,12 @@ public class ActivityLogin extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis())
-        {
+        if (mBackPressed + TIME_INTERVAL > System.currentTimeMillis()) {
             super.onBackPressed();
             return;
+        } else {
+            Toast.makeText(getBaseContext(), getString(R.string.double_back_press_message), Toast.LENGTH_SHORT).show();
         }
-        else { Toast.makeText(getBaseContext(), getString(R.string.double_back_press_message), Toast.LENGTH_SHORT).show(); }
 
         mBackPressed = System.currentTimeMillis();
     }
