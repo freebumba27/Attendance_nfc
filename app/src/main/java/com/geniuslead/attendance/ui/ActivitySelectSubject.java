@@ -14,6 +14,7 @@ import com.geniuslead.attendance.R;
 import com.geniuslead.attendance.model.Course;
 import com.geniuslead.attendance.model.Subject;
 import com.geniuslead.attendance.model.UserDetails;
+import com.geniuslead.attendance.utils.CustomExceptionHandler;
 import com.google.gson.Gson;
 
 import java.util.ArrayList;
@@ -43,6 +44,9 @@ public class ActivitySelectSubject extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_select_subject_screen);
         ButterKnife.bind(this);
+
+            Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
+
 
         UserDetails udobj = new Gson().fromJson(getIntent().getStringExtra("userDetailsObj"), UserDetails.class);
         prepareUi(udobj);

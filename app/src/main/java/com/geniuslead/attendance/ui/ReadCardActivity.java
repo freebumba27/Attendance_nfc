@@ -25,6 +25,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.geniuslead.attendance.R;
+import com.geniuslead.attendance.utils.CustomExceptionHandler;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -61,6 +62,9 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         setContentView(R.layout.activity_read_card);
         ButterKnife.bind(this);
 
+        Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
+
+
         mPreview = (SurfaceView) findViewById(R.id.preview);
         mPreview.getHolder().addCallback(this);
         mPreview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
@@ -88,6 +92,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
                 Toast.makeText(this, "Sorry you don't have secondary camera", Toast.LENGTH_LONG).show();
                 finish();
             } else {
+                releaseCameraAndPreview();
                 mCamera = Camera.open(cameraId);
             }
         }
@@ -96,6 +101,14 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
                 new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
         mNdefPushMessage = new NdefMessage(new NdefRecord[]{newTextRecord(
                 "Message from NFC Reader :-)", Locale.ENGLISH, true)});
+    }
+
+
+    private void releaseCameraAndPreview() {
+        if (mCamera != null) {
+            mCamera.release();
+            mCamera = null;
+        }
     }
 
     @Override

@@ -17,4 +17,6 @@
     <string name="utf_8">UTF-8</string>
     <string name="utf_16">UTF-16</string>
     <string name="double_back_press_message">Press again to exit</string>
+    <string name="crash_toast_text">Ooooops ! I crashed, but a report has been sent to my developer to help fix the issue !</string>
+
 </resources>
