@@ -114,7 +114,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mCamera.release();
+        //mCamera.release();
         Log.d("CAMERA", "Destroy");
     }
 
