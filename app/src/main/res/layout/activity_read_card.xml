@@ -48,7 +48,6 @@
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
         android:text="Take Photo"
-        android:textColor="@android:color/white"
-        android:visibility="gone" />
+        android:textColor="@android:color/white" />
 
 </RelativeLayout>

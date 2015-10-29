@@ -25,7 +25,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.geniuslead.attendance.R;
-import com.geniuslead.attendance.utils.CustomExceptionHandler;
+import com.geniuslead.attendance.events.CamCaptureEvent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -41,6 +41,7 @@ import java.util.Locale;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import de.greenrobot.event.EventBus;
 
 public class ReadCardActivity extends AppCompatActivity implements Camera.PictureCallback, Camera.ShutterCallback, SurfaceHolder.Callback {
 
@@ -61,9 +62,6 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_read_card);
         ButterKnife.bind(this);
-
-        Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
-
 
         mPreview = (SurfaceView) findViewById(R.id.preview);
         mPreview.getHolder().addCallback(this);
@@ -99,6 +97,8 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
 
         mPendingIntent = PendingIntent.getActivity(this, 0,
                 new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+        mAdapter = NfcAdapter.getDefaultAdapter(this);
+
         mNdefPushMessage = new NdefMessage(new NdefRecord[]{newTextRecord(
                 "Message from NFC Reader :-)", Locale.ENGLISH, true)});
     }
@@ -115,12 +115,13 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     public void onDestroy() {
         super.onDestroy();
         mCamera.release();
+        mAdapter.disableForegroundDispatch(this);
         Log.d("CAMERA", "Destroy");
     }
 
     @OnClick(R.id.buttonCaptureImage)
     public void capturingImage() {
-        mCamera.takePicture(ReadCardActivity.this, null, null, this);
+        mCamera.takePicture(null, null, ReadCardActivity.this);
     }
 
     private void showMessage(int title, int message) {
@@ -149,6 +150,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     @Override
     protected void onResume() {
         super.onResume();
+        Toast.makeText(ReadCardActivity.this, "OnResume", Toast.LENGTH_LONG).show();
         if (mAdapter != null) {
             if (!mAdapter.isEnabled()) {
                 showWirelessSettingsDialog();
@@ -162,11 +164,11 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     protected void onPause() {
         super.onPause();
 
-        mCamera.stopPreview();
         if (mAdapter != null) {
             mAdapter.disableForegroundDispatch(this);
             mAdapter.disableForegroundNdefPush(this);
         }
+        mCamera.stopPreview();
     }
 
     @Override
@@ -190,16 +192,18 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
                     NdefMessage msg = msgs[0];
                     try {
                         byte[] payload = msg.getRecords()[0].getPayload();
-                        String textEncoding = ((payload[0] & 0200) == 0) ? String.valueOf(R.string.utf_8) : String.valueOf(R.string.utf_16);
+                        String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
                         int languageCodeLength = payload[0] & 0077;
+
+                        Log.d("TAG", "textEncoding: " + textEncoding);
                         String languageCode = new String(payload, 1, languageCodeLength, "US-ASCII");
                         //Get the Text
                         String text = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-                        textViewLastResult.setText(text);
                         if (text.substring(text.length() - 2).equalsIgnoreCase("-Y")
-                                || text.substring(text.length() - 2).equalsIgnoreCase("-N"))
-                            mCamera.takePicture(ReadCardActivity.this, null, null, this);
-                        else
+                                || text.substring(text.length() - 2).equalsIgnoreCase("-N")) {
+                            EventBus.getDefault().post(new CamCaptureEvent.Success(text));
+
+                        } else
                             Log.i("TAG", "Some other type card");
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -243,6 +247,24 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
             }
         }
         return cameraId;
+    }
+
+    public void onEventMainThread(final CamCaptureEvent.Success event) {
+        releaseCameraAndPreview();
+        textViewLastResult.setText(event.getNfcValue());
+        capturingImage();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        EventBus.getDefault().register(this);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        EventBus.getDefault().unregister(this);
     }
 
     @Override
