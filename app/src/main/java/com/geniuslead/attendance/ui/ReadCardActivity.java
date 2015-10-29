@@ -6,7 +6,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -18,12 +17,12 @@ import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.daililol.cameraviewlibrary.CameraView;
 import com.geniuslead.attendance.R;
 import com.geniuslead.attendance.events.CamCaptureEvent;
 
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 
 import butterknife.Bind;
@@ -43,7 +41,7 @@ import butterknife.ButterKnife;
 import butterknife.OnClick;
 import de.greenrobot.event.EventBus;
 
-public class ReadCardActivity extends AppCompatActivity implements Camera.PictureCallback, Camera.ShutterCallback, SurfaceHolder.Callback {
+public class ReadCardActivity extends AppCompatActivity implements CameraView.PhotoCaptureCallback {
 
     @Bind(R.id.textViewLastResult)
     TextView textViewLastResult;
@@ -56,6 +54,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     private AlertDialog mDialog;
     private NdefMessage mNdefPushMessage;
     private int cameraId = 0;
+    private CameraView cameraView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,9 +62,12 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         setContentView(R.layout.activity_read_card);
         ButterKnife.bind(this);
 
-        mPreview = (SurfaceView) findViewById(R.id.preview);
-        mPreview.getHolder().addCallback(this);
-        mPreview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        cameraView = (CameraView) findViewById(R.id.cameraView);
+
+        cameraView.setPhotoCaptureCallback(this);
+//        mPreview = (SurfaceView) findViewById(R.id.preview);
+//        mPreview.getHolder().addCallback(this);
+//        mPreview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -90,8 +92,10 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
                 Toast.makeText(this, "Sorry you don't have secondary camera", Toast.LENGTH_LONG).show();
                 finish();
             } else {
-                releaseCameraAndPreview();
-                mCamera = Camera.open(cameraId);
+                cameraView.setCamera(cameraView.getFrontCamera());
+
+//                releaseCameraAndPreview();
+//                mCamera = Camera.open(cameraId);
             }
         }
 
@@ -104,24 +108,25 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     }
 
 
-    private void releaseCameraAndPreview() {
-        if (mCamera != null) {
-            mCamera.release();
-            mCamera = null;
-        }
-    }
+//    private void releaseCameraAndPreview() {
+//        if (mCamera != null) {
+//            mCamera.release();
+//            mCamera = null;
+//        }
+//    }
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        mCamera.release();
-        mAdapter.disableForegroundDispatch(this);
-        Log.d("CAMERA", "Destroy");
-    }
+//    @Override
+//    public void onDestroy() {
+//        super.onDestroy();
+//        mCamera.release();
+//        mAdapter.disableForegroundDispatch(this);
+//        Log.d("CAMERA", "Destroy");
+//    }
 
     @OnClick(R.id.buttonCaptureImage)
     public void capturingImage() {
-        mCamera.takePicture(null, null, ReadCardActivity.this);
+        // mCamera.takePicture(null, null, ReadCardActivity.this);
+        cameraView.capture();
     }
 
     private void showMessage(int title, int message) {
@@ -150,7 +155,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     @Override
     protected void onResume() {
         super.onResume();
-        Toast.makeText(ReadCardActivity.this, "OnResume", Toast.LENGTH_LONG).show();
+        // Toast.makeText(ReadCardActivity.this, "OnResume", Toast.LENGTH_LONG).show();
         if (mAdapter != null) {
             if (!mAdapter.isEnabled()) {
                 showWirelessSettingsDialog();
@@ -168,7 +173,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
             mAdapter.disableForegroundDispatch(this);
             mAdapter.disableForegroundNdefPush(this);
         }
-        mCamera.stopPreview();
+//        mCamera.stopPreview();
     }
 
     @Override
@@ -250,7 +255,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     }
 
     public void onEventMainThread(final CamCaptureEvent.Success event) {
-        releaseCameraAndPreview();
+        // releaseCameraAndPreview();
         textViewLastResult.setText(event.getNfcValue());
         capturingImage();
     }
@@ -268,13 +273,13 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     }
 
     @Override
-    public void onPictureTaken(byte[] imgData, Camera camera) {
+    public void onPhotoCaptured(Bitmap bitmap) {
         //Here, we chose internal storage
         try {
             //Compressing the image 640*480
             //-----------------------------------------
-            Bitmap bmp = BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
-            Bitmap resizedBmp = Bitmap.createScaledBitmap(bmp, 640, 480, false);
+            //Bitmap bmp = BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
+            Bitmap resizedBmp = Bitmap.createScaledBitmap(bitmap, 640, 480, false);
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             resizedBmp.compress(Bitmap.CompressFormat.PNG, 0, bos);
@@ -303,37 +308,91 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         } catch (IOException e) {
             e.printStackTrace();
         }
-        camera.startPreview();
+//        writeBitmapToFile(bitmap, Environment.getExternalStorageDirectory().getAbsolutePath() + "/tempCapture.jpg");
+//        Toast.makeText(ReadCardActivity.this, "New Image saved:" + Environment.getExternalStorageDirectory().getAbsolutePath() + "/tempCapture.jpg", Toast.LENGTH_LONG).show();
     }
 
-    @Override
-    public void onShutter() {
-        //Toast.makeText(this, "Click!", Toast.LENGTH_SHORT).show();
-    }
 
-    @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        Camera.Parameters params = mCamera.getParameters();
-        List<Camera.Size> sizes = params.getSupportedPreviewSizes();
-        Camera.Size selected = sizes.get(0);
-        params.setPreviewSize(selected.width, selected.height);
-        mCamera.setParameters(params);
+    private boolean writeBitmapToFile(Bitmap bitmap, String desFileUrl) {
+        FileOutputStream outStream = null;
 
-        mCamera.setDisplayOrientation(90);
-        mCamera.startPreview();
-    }
-
-    @Override
-    public void surfaceCreated(SurfaceHolder holder) {
         try {
-            mCamera.setPreviewDisplay(mPreview.getHolder());
+            outStream = new FileOutputStream(desFileUrl);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
+            outStream.close();
+            return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            return false;
         }
     }
 
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        Log.i("PREVIEW", "surfaceDestroyed");
-    }
+//    @Override
+//    public void onPictureTaken(byte[] imgData, Camera camera) {
+//        //Here, we chose internal storage
+//        try {
+//            //Compressing the image 640*480
+//            //-----------------------------------------
+//            Bitmap bmp = BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
+//            Bitmap resizedBmp = Bitmap.createScaledBitmap(bmp, 640, 480, false);
+//
+//            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+//            resizedBmp.compress(Bitmap.CompressFormat.PNG, 0, bos);
+//            byte[] data = bos.toByteArray();
+//            //-----------------------------------------
+//
+//            File pictureFileDir = new File(Environment.getExternalStorageDirectory(), "Attendance Image");
+//            if (!pictureFileDir.exists() && !pictureFileDir.mkdirs()) {
+//                Toast.makeText(ReadCardActivity.this, "Can't create directory to save image.", Toast.LENGTH_LONG).show();
+//                finish();
+//                return;
+//            }
+//            SimpleDateFormat dateFormat = new SimpleDateFormat("dd_mm_yyyy_hh_mm_ss");
+//            String date = dateFormat.format(new Date());
+//            String photoFile = "student_" + textViewLastResult.getText().toString() + "_" + date + ".JPG";
+//
+//            String filename = pictureFileDir.getPath() + File.separator + photoFile;
+//            File pictureFile = new File(filename);
+//
+//            FileOutputStream fos = new FileOutputStream(pictureFile);
+//            fos.write(data);
+//            fos.close();
+//            Toast.makeText(ReadCardActivity.this, "New Image saved:" + filename, Toast.LENGTH_LONG).show();
+//        } catch (FileNotFoundException e) {
+//            e.printStackTrace();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//        camera.startPreview();
+//    }
+//
+//    @Override
+//    public void onShutter() {
+//        //Toast.makeText(this, "Click!", Toast.LENGTH_SHORT).show();
+//    }
+//
+//    @Override
+//    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+//        Camera.Parameters params = mCamera.getParameters();
+//        List<Camera.Size> sizes = params.getSupportedPreviewSizes();
+//        Camera.Size selected = sizes.get(0);
+//        params.setPreviewSize(selected.width, selected.height);
+//        mCamera.setParameters(params);
+//
+//        mCamera.setDisplayOrientation(90);
+//        mCamera.startPreview();
+//    }
+//
+//    @Override
+//    public void surfaceCreated(SurfaceHolder holder) {
+//        try {
+//            mCamera.setPreviewDisplay(mPreview.getHolder());
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
+//    }
+//
+//    @Override
+//    public void surfaceDestroyed(SurfaceHolder holder) {
+//        Log.i("PREVIEW", "surfaceDestroyed");
+//    }
 }

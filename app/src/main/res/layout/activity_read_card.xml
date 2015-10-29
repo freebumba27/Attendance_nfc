@@ -31,10 +31,17 @@
         android:gravity="center_horizontal"
         android:padding="10dp" />
 
-    <SurfaceView
-        android:id="@+id/preview"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
+    <!--<SurfaceView-->
+    <!--android:id="@+id/preview"-->
+    <!--android:layout_width="fill_parent"-->
+    <!--android:layout_height="fill_parent"-->
+    <!--android:layout_below="@+id/appBar"-->
+    <!--android:layout_margin="50dp" />-->
+
+    <com.daililol.cameraviewlibrary.CameraView
+        android:id="@+id/cameraView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:layout_below="@+id/appBar"
         android:layout_margin="50dp" />
 
@@ -48,6 +55,7 @@
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
         android:text="Take Photo"
-        android:textColor="@android:color/white" />
+        android:textColor="@android:color/white"
+        android:visibility="gone"/>
 
 </RelativeLayout>
