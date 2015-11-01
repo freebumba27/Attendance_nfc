@@ -2,6 +2,7 @@ package com.geniuslead.attendance.ui;
 
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -18,13 +19,26 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.SurfaceView;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.daililol.cameraviewlibrary.CameraView;
 import com.geniuslead.attendance.R;
+import com.geniuslead.attendance.events.AttendanceEvent;
 import com.geniuslead.attendance.events.CamCaptureEvent;
+import com.geniuslead.attendance.events.UserDetailsEvent;
+import com.geniuslead.attendance.jobs.SubmitAttendanceJob;
+import com.geniuslead.attendance.model.AttendanceResultSubmission;
+import com.geniuslead.attendance.model.Students;
+import com.geniuslead.attendance.model.UserDetails;
+import com.geniuslead.attendance.utils.MyApplication;
+import com.geniuslead.attendance.utils.MyException;
+import com.geniuslead.attendance.utils.ReuseableClass;
+import com.google.gson.Gson;
+
+import org.json.JSONArray;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -33,6 +47,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
 
@@ -49,12 +64,19 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
     SurfaceView mPreview;
     @Bind(R.id.buttonCaptureImage)
     Button buttonCaptureImage;
+    @Bind(R.id.buttonAttendanceDone)
+    Button buttonAttendanceDone;
+    String photoFunctionality = "";
+    String uploadPhoto = "";
+    AttendanceResultSubmission attendanceResultSubmission;
+    ArrayList<Students> studentsArrayList = null;
     private NfcAdapter mAdapter;
     private PendingIntent mPendingIntent;
     private AlertDialog mDialog;
     private NdefMessage mNdefPushMessage;
     private int cameraId = 0;
     private CameraView cameraView;
+    private ProgressDialog progressDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,24 +84,27 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
         setContentView(R.layout.activity_read_card);
         ButterKnife.bind(this);
 
-        cameraView = (CameraView) findViewById(R.id.cameraView);
+        attendanceResultSubmission = new AttendanceResultSubmission();
+        studentsArrayList = new ArrayList<Students>();
 
-        cameraView.setPhotoCaptureCallback(this);
-//        mPreview = (SurfaceView) findViewById(R.id.preview);
-//        mPreview.getHolder().addCallback(this);
-//        mPreview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-
+        if (!ReuseableClass.getFromPreference("userDetailsObject", this).equalsIgnoreCase("")) {
+            UserDetails userDetails = new Gson().fromJson(ReuseableClass.getFromPreference("userDetailsObject", this), UserDetails.class);
+            attendanceResultSubmission.setDeviceId(userDetails.getDeviceId());
+            attendanceResultSubmission.setUserName(userDetails.getUserName());
+            attendanceResultSubmission.setPassword(userDetails.getPassword());
+            attendanceResultSubmission.setAttendanceDateTime(new SimpleDateFormat("dd/MM/yyyy").format(new Date()));
+            attendanceResultSubmission.setCourseId(ReuseableClass.getFromPreference("courseId", ReadCardActivity.this));
+            attendanceResultSubmission.setSubjectId(ReuseableClass.getFromPreference("subjectId", ReadCardActivity.this));
+            attendanceResultSubmission.setUserId(userDetails.getUserId());
+            attendanceResultSubmission.setCollegeId(userDetails.getCollegeId());
+        }
+        photoFunctionality = ReuseableClass.getFromPreference("photoFunctionality", ReadCardActivity.this);
+        uploadPhoto = ReuseableClass.getFromPreference("uploadPhoto", ReadCardActivity.this);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        mDialog = new AlertDialog.Builder(this).setNeutralButton("Ok", null).create();
-
-        mAdapter = NfcAdapter.getDefaultAdapter(this);
-        if (mAdapter == null) {
-            showMessage(R.string.error, R.string.no_nfc);
-            finish();
-            return;
-        }
+        cameraView = (CameraView) findViewById(R.id.cameraView);
+        cameraView.setPhotoCaptureCallback(this);
 
         // do we have a camera?
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA)) {
@@ -93,35 +118,23 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
                 finish();
             } else {
                 cameraView.setCamera(cameraView.getFrontCamera());
-
-//                releaseCameraAndPreview();
-//                mCamera = Camera.open(cameraId);
             }
         }
 
-        mPendingIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+        if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("false"))
+            cameraView.setVisibility(View.GONE);
+
+        mDialog = new AlertDialog.Builder(this).setNeutralButton("Ok", null).create();
         mAdapter = NfcAdapter.getDefaultAdapter(this);
-
-        mNdefPushMessage = new NdefMessage(new NdefRecord[]{newTextRecord(
-                "Message from NFC Reader :-)", Locale.ENGLISH, true)});
+        if (mAdapter == null) {
+            showMessage(R.string.error, R.string.no_nfc);
+            finish();
+            return;
+        }
+        mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+        mAdapter = NfcAdapter.getDefaultAdapter(this);
+        mNdefPushMessage = new NdefMessage(new NdefRecord[]{newTextRecord("Message from NFC Reader :-)", Locale.ENGLISH, true)});
     }
-
-
-//    private void releaseCameraAndPreview() {
-//        if (mCamera != null) {
-//            mCamera.release();
-//            mCamera = null;
-//        }
-//    }
-
-//    @Override
-//    public void onDestroy() {
-//        super.onDestroy();
-//        mCamera.release();
-//        mAdapter.disableForegroundDispatch(this);
-//        Log.d("CAMERA", "Destroy");
-//    }
 
     @OnClick(R.id.buttonCaptureImage)
     public void capturingImage() {
@@ -163,6 +176,7 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
             mAdapter.enableForegroundDispatch(this, mPendingIntent, null, null);
             mAdapter.enableForegroundNdefPush(this, mNdefPushMessage);
         }
+        cameraView.reconnectCamera();
     }
 
     @Override
@@ -173,7 +187,6 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
             mAdapter.disableForegroundDispatch(this);
             mAdapter.disableForegroundNdefPush(this);
         }
-//        mCamera.stopPreview();
     }
 
     @Override
@@ -215,7 +228,7 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
                     }
                 }
             } else {
-                //textViewLastResult.setText("Wrong mime type: " + type);
+                textViewLastResult.setText("Wrong mime type: " + type);
             }
         }
     }
@@ -255,9 +268,13 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
     }
 
     public void onEventMainThread(final CamCaptureEvent.Success event) {
-        // releaseCameraAndPreview();
         textViewLastResult.setText(event.getNfcValue());
-        capturingImage();
+
+        Students students = new Students();
+        students.setUniqueIdentifier(event.getNfcValue());
+        studentsArrayList.add(students);
+        if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("true"))
+            capturingImage();
     }
 
     @Override
@@ -308,8 +325,6 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
         } catch (IOException e) {
             e.printStackTrace();
         }
-//        writeBitmapToFile(bitmap, Environment.getExternalStorageDirectory().getAbsolutePath() + "/tempCapture.jpg");
-//        Toast.makeText(ReadCardActivity.this, "New Image saved:" + Environment.getExternalStorageDirectory().getAbsolutePath() + "/tempCapture.jpg", Toast.LENGTH_LONG).show();
     }
 
 
@@ -326,73 +341,60 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
         }
     }
 
-//    @Override
-//    public void onPictureTaken(byte[] imgData, Camera camera) {
-//        //Here, we chose internal storage
-//        try {
-//            //Compressing the image 640*480
-//            //-----------------------------------------
-//            Bitmap bmp = BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
-//            Bitmap resizedBmp = Bitmap.createScaledBitmap(bmp, 640, 480, false);
-//
-//            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-//            resizedBmp.compress(Bitmap.CompressFormat.PNG, 0, bos);
-//            byte[] data = bos.toByteArray();
-//            //-----------------------------------------
-//
-//            File pictureFileDir = new File(Environment.getExternalStorageDirectory(), "Attendance Image");
-//            if (!pictureFileDir.exists() && !pictureFileDir.mkdirs()) {
-//                Toast.makeText(ReadCardActivity.this, "Can't create directory to save image.", Toast.LENGTH_LONG).show();
-//                finish();
-//                return;
-//            }
-//            SimpleDateFormat dateFormat = new SimpleDateFormat("dd_mm_yyyy_hh_mm_ss");
-//            String date = dateFormat.format(new Date());
-//            String photoFile = "student_" + textViewLastResult.getText().toString() + "_" + date + ".JPG";
-//
-//            String filename = pictureFileDir.getPath() + File.separator + photoFile;
-//            File pictureFile = new File(filename);
-//
-//            FileOutputStream fos = new FileOutputStream(pictureFile);
-//            fos.write(data);
-//            fos.close();
-//            Toast.makeText(ReadCardActivity.this, "New Image saved:" + filename, Toast.LENGTH_LONG).show();
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        }
-//        camera.startPreview();
-//    }
-//
-//    @Override
-//    public void onShutter() {
-//        //Toast.makeText(this, "Click!", Toast.LENGTH_SHORT).show();
-//    }
-//
-//    @Override
-//    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-//        Camera.Parameters params = mCamera.getParameters();
-//        List<Camera.Size> sizes = params.getSupportedPreviewSizes();
-//        Camera.Size selected = sizes.get(0);
-//        params.setPreviewSize(selected.width, selected.height);
-//        mCamera.setParameters(params);
-//
-//        mCamera.setDisplayOrientation(90);
-//        mCamera.startPreview();
-//    }
-//
-//    @Override
-//    public void surfaceCreated(SurfaceHolder holder) {
-//        try {
-//            mCamera.setPreviewDisplay(mPreview.getHolder());
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//    }
-//
-//    @Override
-//    public void surfaceDestroyed(SurfaceHolder holder) {
-//        Log.i("PREVIEW", "surfaceDestroyed");
-//    }
+    @OnClick(R.id.buttonAttendanceDone)
+    public void submittingAttendanceResult(View view) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(ReadCardActivity.this);
+        builder.setTitle("Confirm");
+        builder.setMessage("Are you sure all attendance are done?");
+        builder.setPositiveButton("YES", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+                attendanceResultSubmission.setStudents(studentsArrayList);
+                Log.d("TAG", "Submitting Json: " + attendanceResultSubmission.toString());
+                progressDialog = ProgressDialog.show(ReadCardActivity.this, "", getString(R.string.loading), true);
+                MyApplication.getInstance().getJobManager().addJob(new SubmitAttendanceJob(attendanceResultSubmission));
+            }
+        });
+        builder.setNegativeButton("NO", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+
+        AlertDialog alert = builder.create();
+        alert.show();
+    }
+
+    public void onEventMainThread(AttendanceEvent.Success event) {
+        if (progressDialog != null) progressDialog.dismiss();
+
+        try {
+            JSONArray studentArray = new JSONArray(event.getResult());
+            AlertDialog.Builder builder = new AlertDialog.Builder(ReadCardActivity.this);
+            builder.setTitle("Confirmation");
+            builder.setMessage("Attendance successful. No of student is - " + studentArray.length());
+            builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
+                    Toast.makeText(ReadCardActivity.this, "Thank you.", Toast.LENGTH_LONG).show();
+                }
+            });
+            AlertDialog alert = builder.create();
+            alert.show();
+
+        } catch (Throwable e) {
+            EventBus.getDefault().post(new UserDetailsEvent.Fail(new MyException(e.getMessage())));
+        }
+    }
+
+    public void onEventMainThread(AttendanceEvent.Fail event) {
+        if (progressDialog != null) progressDialog.dismiss();
+        if (event.getEx() != null) {
+            new android.support.v7.app.AlertDialog.Builder(this)
+                    .setIconAttribute(android.R.attr.alertDialogIcon)
+                    .setMessage(R.string.server_error)
+                    .setPositiveButton("OK", null)
+                    .show();
+        }
+    }
 }

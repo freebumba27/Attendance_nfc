@@ -31,13 +31,6 @@
         android:gravity="center_horizontal"
         android:padding="10dp" />
 
-    <!--<SurfaceView-->
-    <!--android:id="@+id/preview"-->
-    <!--android:layout_width="fill_parent"-->
-    <!--android:layout_height="fill_parent"-->
-    <!--android:layout_below="@+id/appBar"-->
-    <!--android:layout_margin="50dp" />-->
-
     <com.daililol.cameraviewlibrary.CameraView
         android:id="@+id/cameraView"
         android:layout_width="match_parent"
@@ -56,6 +49,19 @@
         android:paddingRight="10dp"
         android:text="Take Photo"
         android:textColor="@android:color/white"
-        android:visibility="gone"/>
+        android:visibility="gone" />
+
+    <Button
+        android:id="@+id/buttonAttendanceDone"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="10dp"
+        android:onClick="submittingAttendanceResult"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:text="Completed all attendance"
+        android:theme="@style/Button.Blue" />
 
 </RelativeLayout>

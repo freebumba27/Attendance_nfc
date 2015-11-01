@@ -62,9 +62,8 @@
                 android:layout_marginLeft="10dp"
                 android:layout_marginRight="10dp"
                 android:layout_marginTop="15dp"
-                android:background="@drawable/custom_button"
                 android:text="SIGN IN"
-                android:textColor="@android:color/white"/>
+                android:theme="@style/Button.Blue"/>
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

@@ -29,7 +29,6 @@ dependencies {
     compile 'com.path:android-priority-jobqueue:1.1.2'
     compile 'uk.co.chrisjenx:calligraphy:2.1.0'
     compile 'com.android.support:design:23.0.1'
-    compile 'ch.acra:acra:4.6.2'
     compile files('libs/guavalib.jar')
     compile project(':cameraviewlibrary')
 }

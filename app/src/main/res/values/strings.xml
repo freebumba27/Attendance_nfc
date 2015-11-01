@@ -16,5 +16,6 @@
     <string name="title_activity_read_card">ReadCardActivity</string>
     <string name="double_back_press_message">Press again to exit</string>
     <string name="crash_toast_text">Ooooops ! I crashed, but a report has been sent to my developer to help fix the issue !</string>
+    <string name="server_error">Sorry server is not responding. Please try again later.</string>
 
 </resources>

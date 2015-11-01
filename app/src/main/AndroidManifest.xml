@@ -42,10 +42,6 @@
             android:launchMode="singleTask"
             android:theme="@style/AppTheme.NoActionBar" />
 
-        <service
-            android:name=".ui.ReadCardService"
-            android:enabled="true"
-            android:exported="true"></service>
     </application>
 
 </manifest>
