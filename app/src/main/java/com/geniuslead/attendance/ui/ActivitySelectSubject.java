@@ -53,9 +53,19 @@ public class ActivitySelectSubject extends AppCompatActivity {
 
         Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
 
-
         UserDetails udobj = new Gson().fromJson(getIntent().getStringExtra("userDetailsObj"), UserDetails.class);
         prepareUi(udobj);
+
+        if (ReuseableClass.getFromPreference("photoFunctionality", this).equalsIgnoreCase("true"))
+            checkBoxPhotoFunctionality.isChecked();
+        if (ReuseableClass.getFromPreference("uploadPhoto", this).equalsIgnoreCase("true"))
+            checkBoxUploadImage.isChecked();
+
+        String courseId = ReuseableClass.getFromPreference("courseId", this);
+        String courseName = ReuseableClass.getFromPreference("courseName", this);
+        MyData myCourseData = new MyData(courseName, courseId);
+        ArrayList<Subject> subjects = udobj.getSubjects();
+        SpinnerCourse.setSelection(subjects.indexOf(myCourseData));
     }
 
     public void prepareUi(UserDetails userDetailsObj) {
@@ -92,6 +102,7 @@ public class ActivitySelectSubject extends AppCompatActivity {
                         MyData d = courseValues[position];
                         //Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
                         ReuseableClass.saveInPreference("courseId", d.getValue(), ActivitySelectSubject.this);
+                        ReuseableClass.saveInPreference("courseName", d.getSpinnerText(), ActivitySelectSubject.this);
                         populateSubjectSpinner(d.getValue(), ud);
                     }
 

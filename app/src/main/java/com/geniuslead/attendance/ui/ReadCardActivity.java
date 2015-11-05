@@ -20,6 +20,8 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -77,12 +79,47 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
     private int cameraId = 0;
     private CameraView cameraView;
     private ProgressDialog progressDialog;
+    @Bind(R.id.webview)
+    WebView webview;
+    String decodedUrl = "";
+    private String decodedSuffix = "";
+    private String decodedStudentId;
+    private boolean isRedirected = false;
+    private Boolean processingDecoding = false;
+
+    int attendanceCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_read_card);
         ButterKnife.bind(this);
+
+        webview.setWebViewClient(new WebViewClient() {
+            public void onPageFinished(WebView view, String url) {
+
+                if (!isRedirected) {
+                    isRedirected = true;
+                    decodedUrl = webview.getUrl();
+                    if (decodedUrl != null) {
+                        Log.d("URL", "Decoded URL: " + decodedUrl);
+
+                        decodedUrl = decodedUrl.substring(decodedUrl.indexOf("//") + 2, decodedUrl.lastIndexOf("/"));
+                        decodedStudentId = decodedUrl + decodedSuffix;
+
+                        if (progressDialog != null) progressDialog.dismiss();
+                        Log.d("URL", "Decoded ID: " + decodedStudentId);
+
+                        processingDecoding = false;
+                        EventBus.getDefault().post(new CamCaptureEvent.Success(decodedStudentId));
+                    } else {
+                        if (progressDialog != null) progressDialog.dismiss();
+                        Toast.makeText(ReadCardActivity.this, "Unable to fetch your id. Try again please.", Toast.LENGTH_LONG).show();
+                    }
+                } else
+                    isRedirected = false;
+            }
+        });
 
         attendanceResultSubmission = new AttendanceResultSubmission();
         studentsArrayList = new ArrayList<Students>();
@@ -138,7 +175,6 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
 
     @OnClick(R.id.buttonCaptureImage)
     public void capturingImage() {
-        // mCamera.takePicture(null, null, ReadCardActivity.this);
         cameraView.capture();
     }
 
@@ -182,11 +218,11 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
     @Override
     protected void onPause() {
         super.onPause();
-
         if (mAdapter != null) {
             mAdapter.disableForegroundDispatch(this);
             mAdapter.disableForegroundNdefPush(this);
         }
+        cameraView.releaseCamera();
     }
 
     @Override
@@ -199,36 +235,51 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
         String type = intent.getType();
         String action = intent.getAction();
 
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
-            if ("text/plain".equals(type)) {
-                Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
-                if (rawMsgs != null) {
-                    NdefMessage[] msgs = new NdefMessage[rawMsgs.length];
-                    for (int i = 0; i < rawMsgs.length; i++) {
-                        msgs[i] = (NdefMessage) rawMsgs[i];
-                    }
-                    NdefMessage msg = msgs[0];
-                    try {
-                        byte[] payload = msg.getRecords()[0].getPayload();
-                        String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
-                        int languageCodeLength = payload[0] & 0077;
+        if (!processingDecoding) {
+            processingDecoding = true;
+            if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
+                if ("text/plain".equals(type)) {
+                    Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+                    if (rawMsgs != null) {
+                        NdefMessage[] msgs = new NdefMessage[rawMsgs.length];
+                        for (int i = 0; i < rawMsgs.length; i++) {
+                            msgs[i] = (NdefMessage) rawMsgs[i];
+                        }
+                        NdefMessage msg = msgs[0];
+                        try {
+                            byte[] payload = msg.getRecords()[0].getPayload();
+                            String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
+                            int languageCodeLength = payload[0] & 0077;
 
-                        Log.d("TAG", "textEncoding: " + textEncoding);
-                        String languageCode = new String(payload, 1, languageCodeLength, "US-ASCII");
-                        //Get the Text
-                        String text = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-                        if (text.substring(text.length() - 2).equalsIgnoreCase("-Y")
-                                || text.substring(text.length() - 2).equalsIgnoreCase("-N")) {
-                            EventBus.getDefault().post(new CamCaptureEvent.Success(text));
+                            Log.d("TAG", "textEncoding: " + textEncoding);
+                            String languageCode = new String(payload, 1, languageCodeLength, "US-ASCII");
+                            //Get the Text
+                            String text = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
+                            if (text.substring(text.length() - 2).equalsIgnoreCase("-N")) {
+                                if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("true"))
+                                    capturingImage();
 
-                        } else
-                            Log.i("TAG", "Some other type card");
-                    } catch (Exception e) {
-                        e.printStackTrace();
+                                EventBus.getDefault().post(new CamCaptureEvent.Success(text));
+                            } else if (text.substring(text.length() - 2).equalsIgnoreCase("-Y")) {
+                                if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("true"))
+                                    capturingImage();
+
+                                progressDialog = ProgressDialog.show(ReadCardActivity.this, "Getting your id wait please", getString(R.string.loading), true);
+
+                                Log.d("URL", "url: " + text.substring(0, text.indexOf("-")));
+                                Log.d("URL", "rest: " + text.substring(text.indexOf("-"), text.length()));
+
+                                decodedSuffix = text.substring(text.indexOf("-"), text.length());
+                                webview.loadUrl(text.substring(0, text.indexOf("-")));
+                            } else
+                                Log.i("TAG", "Some other type card");
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
+                } else {
+                    textViewLastResult.setText("Wrong mime type: " + type);
                 }
-            } else {
-                textViewLastResult.setText("Wrong mime type: " + type);
             }
         }
     }
@@ -273,8 +324,6 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
         Students students = new Students();
         students.setUniqueIdentifier(event.getNfcValue());
         studentsArrayList.add(students);
-        if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("true"))
-            capturingImage();
     }
 
     @Override
@@ -319,7 +368,8 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
             FileOutputStream fos = new FileOutputStream(pictureFile);
             fos.write(data);
             fos.close();
-            Toast.makeText(ReadCardActivity.this, "New Image saved:" + filename, Toast.LENGTH_LONG).show();
+            attendanceCount += attendanceCount;
+            Toast.makeText(ReadCardActivity.this, "New Image saved:" + filename + "\nTotal attendance - " + attendanceCount, Toast.LENGTH_LONG).show();
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
