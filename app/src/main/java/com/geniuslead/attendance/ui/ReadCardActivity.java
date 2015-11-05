@@ -2,11 +2,11 @@ package com.geniuslead.attendance.ui;
 
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
@@ -18,14 +18,29 @@ import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.daililol.cameraviewlibrary.CameraView;
 import com.geniuslead.attendance.R;
-import com.geniuslead.attendance.utils.CustomExceptionHandler;
+import com.geniuslead.attendance.events.AttendanceEvent;
+import com.geniuslead.attendance.events.CamCaptureEvent;
+import com.geniuslead.attendance.events.UserDetailsEvent;
+import com.geniuslead.attendance.jobs.SubmitAttendanceJob;
+import com.geniuslead.attendance.model.AttendanceResultSubmission;
+import com.geniuslead.attendance.model.Students;
+import com.geniuslead.attendance.model.UserDetails;
+import com.geniuslead.attendance.utils.MyApplication;
+import com.geniuslead.attendance.utils.MyException;
+import com.geniuslead.attendance.utils.ReuseableClass;
+import com.google.gson.Gson;
+
+import org.json.JSONArray;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -34,15 +49,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import de.greenrobot.event.EventBus;
 
-public class ReadCardActivity extends AppCompatActivity implements Camera.PictureCallback, Camera.ShutterCallback, SurfaceHolder.Callback {
+public class ReadCardActivity extends AppCompatActivity implements CameraView.PhotoCaptureCallback {
 
     @Bind(R.id.textViewLastResult)
     TextView textViewLastResult;
@@ -50,11 +66,28 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     SurfaceView mPreview;
     @Bind(R.id.buttonCaptureImage)
     Button buttonCaptureImage;
+    @Bind(R.id.buttonAttendanceDone)
+    Button buttonAttendanceDone;
+    String photoFunctionality = "";
+    String uploadPhoto = "";
+    AttendanceResultSubmission attendanceResultSubmission;
+    ArrayList<Students> studentsArrayList = null;
     private NfcAdapter mAdapter;
     private PendingIntent mPendingIntent;
     private AlertDialog mDialog;
     private NdefMessage mNdefPushMessage;
     private int cameraId = 0;
+    private CameraView cameraView;
+    private ProgressDialog progressDialog;
+    @Bind(R.id.webview)
+    WebView webview;
+    String decodedUrl = "";
+    private String decodedSuffix = "";
+    private String decodedStudentId;
+    private boolean isRedirected = false;
+    private Boolean processingDecoding = false;
+
+    int attendanceCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,24 +95,53 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         setContentView(R.layout.activity_read_card);
         ButterKnife.bind(this);
 
-        Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
+        webview.setWebViewClient(new WebViewClient() {
+            public void onPageFinished(WebView view, String url) {
 
+                if (!isRedirected) {
+                    isRedirected = true;
+                    decodedUrl = webview.getUrl();
+                    if (decodedUrl != null) {
+                        Log.d("URL", "Decoded URL: " + decodedUrl);
 
-        mPreview = (SurfaceView) findViewById(R.id.preview);
-        mPreview.getHolder().addCallback(this);
-        mPreview.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+                        decodedUrl = decodedUrl.substring(decodedUrl.indexOf("//") + 2, decodedUrl.lastIndexOf("/"));
+                        decodedStudentId = decodedUrl + decodedSuffix;
 
+                        if (progressDialog != null) progressDialog.dismiss();
+                        Log.d("URL", "Decoded ID: " + decodedStudentId);
+
+                        processingDecoding = false;
+                        EventBus.getDefault().post(new CamCaptureEvent.Success(decodedStudentId));
+                    } else {
+                        if (progressDialog != null) progressDialog.dismiss();
+                        Toast.makeText(ReadCardActivity.this, "Unable to fetch your id. Try again please.", Toast.LENGTH_LONG).show();
+                    }
+                } else
+                    isRedirected = false;
+            }
+        });
+
+        attendanceResultSubmission = new AttendanceResultSubmission();
+        studentsArrayList = new ArrayList<Students>();
+
+        if (!ReuseableClass.getFromPreference("userDetailsObject", this).equalsIgnoreCase("")) {
+            UserDetails userDetails = new Gson().fromJson(ReuseableClass.getFromPreference("userDetailsObject", this), UserDetails.class);
+            attendanceResultSubmission.setDeviceId(userDetails.getDeviceId());
+            attendanceResultSubmission.setUserName(userDetails.getUserName());
+            attendanceResultSubmission.setPassword(userDetails.getPassword());
+            attendanceResultSubmission.setAttendanceDateTime(new SimpleDateFormat("dd/MM/yyyy").format(new Date()));
+            attendanceResultSubmission.setCourseId(ReuseableClass.getFromPreference("courseId", ReadCardActivity.this));
+            attendanceResultSubmission.setSubjectId(ReuseableClass.getFromPreference("subjectId", ReadCardActivity.this));
+            attendanceResultSubmission.setUserId(userDetails.getUserId());
+            attendanceResultSubmission.setCollegeId(userDetails.getCollegeId());
+        }
+        photoFunctionality = ReuseableClass.getFromPreference("photoFunctionality", ReadCardActivity.this);
+        uploadPhoto = ReuseableClass.getFromPreference("uploadPhoto", ReadCardActivity.this);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        mDialog = new AlertDialog.Builder(this).setNeutralButton("Ok", null).create();
-
-        mAdapter = NfcAdapter.getDefaultAdapter(this);
-        if (mAdapter == null) {
-            showMessage(R.string.error, R.string.no_nfc);
-            finish();
-            return;
-        }
+        cameraView = (CameraView) findViewById(R.id.cameraView);
+        cameraView.setPhotoCaptureCallback(this);
 
         // do we have a camera?
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA)) {
@@ -92,35 +154,28 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
                 Toast.makeText(this, "Sorry you don't have secondary camera", Toast.LENGTH_LONG).show();
                 finish();
             } else {
-                releaseCameraAndPreview();
-                mCamera = Camera.open(cameraId);
+                cameraView.setCamera(cameraView.getFrontCamera());
             }
         }
 
-        mPendingIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
-        mNdefPushMessage = new NdefMessage(new NdefRecord[]{newTextRecord(
-                "Message from NFC Reader :-)", Locale.ENGLISH, true)});
-    }
+        if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("false"))
+            cameraView.setVisibility(View.GONE);
 
-
-    private void releaseCameraAndPreview() {
-        if (mCamera != null) {
-            mCamera.release();
-            mCamera = null;
+        mDialog = new AlertDialog.Builder(this).setNeutralButton("Ok", null).create();
+        mAdapter = NfcAdapter.getDefaultAdapter(this);
+        if (mAdapter == null) {
+            showMessage(R.string.error, R.string.no_nfc);
+            finish();
+            return;
         }
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        //mCamera.release();
-        Log.d("CAMERA", "Destroy");
+        mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+        mAdapter = NfcAdapter.getDefaultAdapter(this);
+        mNdefPushMessage = new NdefMessage(new NdefRecord[]{newTextRecord("Message from NFC Reader :-)", Locale.ENGLISH, true)});
     }
 
     @OnClick(R.id.buttonCaptureImage)
     public void capturingImage() {
-        mCamera.takePicture(ReadCardActivity.this, null, null, this);
+        cameraView.capture();
     }
 
     private void showMessage(int title, int message) {
@@ -149,6 +204,7 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
     @Override
     protected void onResume() {
         super.onResume();
+        // Toast.makeText(ReadCardActivity.this, "OnResume", Toast.LENGTH_LONG).show();
         if (mAdapter != null) {
             if (!mAdapter.isEnabled()) {
                 showWirelessSettingsDialog();
@@ -156,17 +212,17 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
             mAdapter.enableForegroundDispatch(this, mPendingIntent, null, null);
             mAdapter.enableForegroundNdefPush(this, mNdefPushMessage);
         }
+        cameraView.reconnectCamera();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-
-        mCamera.stopPreview();
         if (mAdapter != null) {
             mAdapter.disableForegroundDispatch(this);
             mAdapter.disableForegroundNdefPush(this);
         }
+        cameraView.releaseCamera();
     }
 
     @Override
@@ -179,34 +235,51 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         String type = intent.getType();
         String action = intent.getAction();
 
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
-            if ("text/plain".equals(type)) {
-                Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
-                if (rawMsgs != null) {
-                    NdefMessage[] msgs = new NdefMessage[rawMsgs.length];
-                    for (int i = 0; i < rawMsgs.length; i++) {
-                        msgs[i] = (NdefMessage) rawMsgs[i];
+        if (!processingDecoding) {
+            processingDecoding = true;
+            if (NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
+                if ("text/plain".equals(type)) {
+                    Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+                    if (rawMsgs != null) {
+                        NdefMessage[] msgs = new NdefMessage[rawMsgs.length];
+                        for (int i = 0; i < rawMsgs.length; i++) {
+                            msgs[i] = (NdefMessage) rawMsgs[i];
+                        }
+                        NdefMessage msg = msgs[0];
+                        try {
+                            byte[] payload = msg.getRecords()[0].getPayload();
+                            String textEncoding = ((payload[0] & 0200) == 0) ? "UTF-8" : "UTF-16";
+                            int languageCodeLength = payload[0] & 0077;
+
+                            Log.d("TAG", "textEncoding: " + textEncoding);
+                            String languageCode = new String(payload, 1, languageCodeLength, "US-ASCII");
+                            //Get the Text
+                            String text = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
+                            if (text.substring(text.length() - 2).equalsIgnoreCase("-N")) {
+                                if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("true"))
+                                    capturingImage();
+
+                                EventBus.getDefault().post(new CamCaptureEvent.Success(text));
+                            } else if (text.substring(text.length() - 2).equalsIgnoreCase("-Y")) {
+                                if (!photoFunctionality.equalsIgnoreCase("") && photoFunctionality.equalsIgnoreCase("true"))
+                                    capturingImage();
+
+                                progressDialog = ProgressDialog.show(ReadCardActivity.this, "Getting your id wait please", getString(R.string.loading), true);
+
+                                Log.d("URL", "url: " + text.substring(0, text.indexOf("-")));
+                                Log.d("URL", "rest: " + text.substring(text.indexOf("-"), text.length()));
+
+                                decodedSuffix = text.substring(text.indexOf("-"), text.length());
+                                webview.loadUrl(text.substring(0, text.indexOf("-")));
+                            } else
+                                Log.i("TAG", "Some other type card");
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     }
-                    NdefMessage msg = msgs[0];
-                    try {
-                        byte[] payload = msg.getRecords()[0].getPayload();
-                        String textEncoding = ((payload[0] & 0200) == 0) ? String.valueOf(R.string.utf_8) : String.valueOf(R.string.utf_16);
-                        int languageCodeLength = payload[0] & 0077;
-                        String languageCode = new String(payload, 1, languageCodeLength, "US-ASCII");
-                        //Get the Text
-                        String text = new String(payload, languageCodeLength + 1, payload.length - languageCodeLength - 1, textEncoding);
-                        textViewLastResult.setText(text);
-                        if (text.substring(text.length() - 2).equalsIgnoreCase("-Y")
-                                || text.substring(text.length() - 2).equalsIgnoreCase("-N"))
-                            mCamera.takePicture(ReadCardActivity.this, null, null, this);
-                        else
-                            Log.i("TAG", "Some other type card");
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                } else {
+                    textViewLastResult.setText("Wrong mime type: " + type);
                 }
-            } else {
-                //textViewLastResult.setText("Wrong mime type: " + type);
             }
         }
     }
@@ -245,14 +318,34 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
         return cameraId;
     }
 
+    public void onEventMainThread(final CamCaptureEvent.Success event) {
+        textViewLastResult.setText(event.getNfcValue());
+
+        Students students = new Students();
+        students.setUniqueIdentifier(event.getNfcValue());
+        studentsArrayList.add(students);
+    }
+
     @Override
-    public void onPictureTaken(byte[] imgData, Camera camera) {
+    public void onStart() {
+        super.onStart();
+        EventBus.getDefault().register(this);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        EventBus.getDefault().unregister(this);
+    }
+
+    @Override
+    public void onPhotoCaptured(Bitmap bitmap) {
         //Here, we chose internal storage
         try {
             //Compressing the image 640*480
             //-----------------------------------------
-            Bitmap bmp = BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
-            Bitmap resizedBmp = Bitmap.createScaledBitmap(bmp, 640, 480, false);
+            //Bitmap bmp = BitmapFactory.decodeByteArray(imgData, 0, imgData.length);
+            Bitmap resizedBmp = Bitmap.createScaledBitmap(bitmap, 640, 480, false);
 
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             resizedBmp.compress(Bitmap.CompressFormat.PNG, 0, bos);
@@ -275,43 +368,83 @@ public class ReadCardActivity extends AppCompatActivity implements Camera.Pictur
             FileOutputStream fos = new FileOutputStream(pictureFile);
             fos.write(data);
             fos.close();
-            Toast.makeText(ReadCardActivity.this, "New Image saved:" + filename, Toast.LENGTH_LONG).show();
+            attendanceCount += attendanceCount;
+            Toast.makeText(ReadCardActivity.this, "New Image saved:" + filename + "\nTotal attendance - " + attendanceCount, Toast.LENGTH_LONG).show();
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        camera.startPreview();
     }
 
-    @Override
-    public void onShutter() {
-        //Toast.makeText(this, "Click!", Toast.LENGTH_SHORT).show();
-    }
 
-    @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        Camera.Parameters params = mCamera.getParameters();
-        List<Camera.Size> sizes = params.getSupportedPreviewSizes();
-        Camera.Size selected = sizes.get(0);
-        params.setPreviewSize(selected.width, selected.height);
-        mCamera.setParameters(params);
+    private boolean writeBitmapToFile(Bitmap bitmap, String desFileUrl) {
+        FileOutputStream outStream = null;
 
-        mCamera.setDisplayOrientation(90);
-        mCamera.startPreview();
-    }
-
-    @Override
-    public void surfaceCreated(SurfaceHolder holder) {
         try {
-            mCamera.setPreviewDisplay(mPreview.getHolder());
+            outStream = new FileOutputStream(desFileUrl);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
+            outStream.close();
+            return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            return false;
         }
     }
 
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        Log.i("PREVIEW", "surfaceDestroyed");
+    @OnClick(R.id.buttonAttendanceDone)
+    public void submittingAttendanceResult(View view) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(ReadCardActivity.this);
+        builder.setTitle("Confirm");
+        builder.setMessage("Are you sure all attendance are done?");
+        builder.setPositiveButton("YES", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+                attendanceResultSubmission.setStudents(studentsArrayList);
+                Log.d("TAG", "Submitting Json: " + attendanceResultSubmission.toString());
+                progressDialog = ProgressDialog.show(ReadCardActivity.this, "", getString(R.string.loading), true);
+                MyApplication.getInstance().getJobManager().addJob(new SubmitAttendanceJob(attendanceResultSubmission));
+            }
+        });
+        builder.setNegativeButton("NO", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+
+        AlertDialog alert = builder.create();
+        alert.show();
+    }
+
+    public void onEventMainThread(AttendanceEvent.Success event) {
+        if (progressDialog != null) progressDialog.dismiss();
+
+        try {
+            JSONArray studentArray = new JSONArray(event.getResult());
+            AlertDialog.Builder builder = new AlertDialog.Builder(ReadCardActivity.this);
+            builder.setTitle("Confirmation");
+            builder.setMessage("Attendance successful. No of student is - " + studentArray.length());
+            builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
+                    Toast.makeText(ReadCardActivity.this, "Thank you.", Toast.LENGTH_LONG).show();
+                }
+            });
+            AlertDialog alert = builder.create();
+            alert.show();
+
+        } catch (Throwable e) {
+            EventBus.getDefault().post(new UserDetailsEvent.Fail(new MyException(e.getMessage())));
+        }
+    }
+
+    public void onEventMainThread(AttendanceEvent.Fail event) {
+        if (progressDialog != null) progressDialog.dismiss();
+        if (event.getEx() != null) {
+            new android.support.v7.app.AlertDialog.Builder(this)
+                    .setIconAttribute(android.R.attr.alertDialogIcon)
+                    .setMessage(R.string.server_error)
+                    .setPositiveButton("OK", null)
+                    .show();
+        }
     }
 }

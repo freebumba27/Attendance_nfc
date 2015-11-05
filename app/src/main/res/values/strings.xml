@@ -14,9 +14,8 @@
     <string name="no_nfc">No NFC found on this device</string>
     <string name="nfc_disabled">NFC is not enabled. Please go to the wireless settings to enable it.</string>
     <string name="title_activity_read_card">ReadCardActivity</string>
-    <string name="utf_8">UTF-8</string>
-    <string name="utf_16">UTF-16</string>
     <string name="double_back_press_message">Press again to exit</string>
     <string name="crash_toast_text">Ooooops ! I crashed, but a report has been sent to my developer to help fix the issue !</string>
+    <string name="server_error">Sorry server is not responding. Please try again later.</string>
 
 </resources>

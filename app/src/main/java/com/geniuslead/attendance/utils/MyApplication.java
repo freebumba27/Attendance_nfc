@@ -11,37 +11,12 @@ import com.path.android.jobqueue.JobManager;
 import com.path.android.jobqueue.config.Configuration;
 import com.path.android.jobqueue.log.CustomLogger;
 
-import org.acra.ACRA;
-import org.acra.ReportField;
-import org.acra.ReportingInteractionMode;
-import org.acra.annotation.ReportsCrashes;
-import org.acra.sender.HttpSender;
-
 import uk.co.chrisjenx.calligraphy.CalligraphyConfig;
 
 /**
  * Created by AJ on 9/25/15.
  */
 
-@ReportsCrashes(
-        formUri = "https://bumba27.cloudant.com/acralyzer/_design/acra-storage/_update/report",
-        reportType = HttpSender.Type.JSON,
-        httpMethod = HttpSender.Method.POST,
-        formUriBasicAuthLogin = "dedgerhoresperibentionee",
-        formUriBasicAuthPassword = "f5e15c7dc6fbcc4655f1921de2d0bc397b99de8d",
-        // formKey = "", // This is required for backward compatibility but not used
-        customReportContent = {
-                ReportField.APP_VERSION_CODE,
-                ReportField.APP_VERSION_NAME,
-                ReportField.ANDROID_VERSION,
-                ReportField.PACKAGE_NAME,
-                ReportField.REPORT_ID,
-                ReportField.BUILD,
-                ReportField.STACK_TRACE
-        },
-        mode = ReportingInteractionMode.TOAST,
-        resToastText = R.string.crash_toast_text
-)
 public class MyApplication extends Application {
 
     private static MyApplication instance;
@@ -58,7 +33,6 @@ public class MyApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        ACRA.init(this);
         instance = this;
         configureJobManager();
 

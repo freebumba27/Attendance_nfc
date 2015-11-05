@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.Spinner;
 
 import com.geniuslead.attendance.R;
@@ -15,6 +16,7 @@ import com.geniuslead.attendance.model.Course;
 import com.geniuslead.attendance.model.Subject;
 import com.geniuslead.attendance.model.UserDetails;
 import com.geniuslead.attendance.utils.CustomExceptionHandler;
+import com.geniuslead.attendance.utils.ReuseableClass;
 import com.google.gson.Gson;
 
 import java.util.ArrayList;
@@ -35,6 +37,10 @@ public class ActivitySelectSubject extends AppCompatActivity {
     Spinner SpinnerSubject;
     @Bind(R.id.ButtonSave)
     Button ButtonSave;
+    @Bind(R.id.checkBoxPhotoFunctionality)
+    CheckBox checkBoxPhotoFunctionality;
+    @Bind(R.id.checkBoxUploadImage)
+    CheckBox checkBoxUploadImage;
     MyData[] courseValues = null;
     MyData[] subjectValues = null;
     Map<Integer, MyData> myDataMap = new HashMap<>();
@@ -45,11 +51,21 @@ public class ActivitySelectSubject extends AppCompatActivity {
         setContentView(R.layout.activity_select_subject_screen);
         ButterKnife.bind(this);
 
-            Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
-
+        Thread.setDefaultUncaughtExceptionHandler(new CustomExceptionHandler(this));
 
         UserDetails udobj = new Gson().fromJson(getIntent().getStringExtra("userDetailsObj"), UserDetails.class);
         prepareUi(udobj);
+
+        if (ReuseableClass.getFromPreference("photoFunctionality", this).equalsIgnoreCase("true"))
+            checkBoxPhotoFunctionality.isChecked();
+        if (ReuseableClass.getFromPreference("uploadPhoto", this).equalsIgnoreCase("true"))
+            checkBoxUploadImage.isChecked();
+
+        String courseId = ReuseableClass.getFromPreference("courseId", this);
+        String courseName = ReuseableClass.getFromPreference("courseName", this);
+        MyData myCourseData = new MyData(courseName, courseId);
+        ArrayList<Subject> subjects = udobj.getSubjects();
+        SpinnerCourse.setSelection(subjects.indexOf(myCourseData));
     }
 
     public void prepareUi(UserDetails userDetailsObj) {
@@ -85,6 +101,8 @@ public class ActivitySelectSubject extends AppCompatActivity {
                     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                         MyData d = courseValues[position];
                         //Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
+                        ReuseableClass.saveInPreference("courseId", d.getValue(), ActivitySelectSubject.this);
+                        ReuseableClass.saveInPreference("courseName", d.getSpinnerText(), ActivitySelectSubject.this);
                         populateSubjectSpinner(d.getValue(), ud);
                     }
 
@@ -121,6 +139,7 @@ public class ActivitySelectSubject extends AppCompatActivity {
                     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                         MyData d = subjectValues[position];
                         //Toast.makeText(ActivitySelectSubject.this, "Value: " + d.getValue() + " Name: " + d.getSpinnerText(), Toast.LENGTH_LONG).show();
+                        ReuseableClass.saveInPreference("subjectId", d.getValue(), ActivitySelectSubject.this);
                     }
 
                     public void onNothingSelected(AdapterView<?> parent) {
@@ -132,6 +151,10 @@ public class ActivitySelectSubject extends AppCompatActivity {
 
     @OnClick(R.id.ButtonSave)
     public void saveButtonClicked() {
+        Log.d("TAG", "Photo Functionality Value: " + String.valueOf(checkBoxPhotoFunctionality.isChecked()));
+        Log.d("TAG", "Upload Upload Value: " + String.valueOf(checkBoxUploadImage.isChecked()));
+        ReuseableClass.saveInPreference("photoFunctionality", String.valueOf(checkBoxPhotoFunctionality.isChecked()), ActivitySelectSubject.this);
+        ReuseableClass.saveInPreference("uploadPhoto", String.valueOf(checkBoxUploadImage.isChecked()), ActivitySelectSubject.this);
         Intent i = new Intent(this, ReadCardActivity.class);
         startActivity(i);
     }

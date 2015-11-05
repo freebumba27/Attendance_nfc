@@ -133,7 +133,7 @@ public class ActivityLogin extends AppCompatActivity {
         if (event.getEx() != null) {
             new AlertDialog.Builder(this)
                     .setIconAttribute(android.R.attr.alertDialogIcon)
-                    .setMessage(event.getEx().getMessage())
+                    .setMessage(getString(R.string.server_error))
                     .setPositiveButton("OK", null)
                     .show();
         }
