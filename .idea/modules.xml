@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/Attendance_nfc.iml" filepath="$PROJECT_DIR$/Attendance_nfc.iml" />
-      <module fileurl="file://$PROJECT_DIR$/CameraSurfaceView/CameraSurfaceView.iml" filepath="$PROJECT_DIR$/CameraSurfaceView/CameraSurfaceView.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
       <module fileurl="file://$PROJECT_DIR$/cameraviewlibrary/cameraviewlibrary.iml" filepath="$PROJECT_DIR$/cameraviewlibrary/cameraviewlibrary.iml" />
       <module fileurl="file://$PROJECT_DIR$/nfcreadermaster/nfcreadermaster.iml" filepath="$PROJECT_DIR$/nfcreadermaster/nfcreadermaster.iml" />

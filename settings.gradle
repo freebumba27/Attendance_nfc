@@ -1,2 +1,2 @@
-include ':app', ':cameraviewlibrary', ':CameraSurfaceView'
+include ':app', ':cameraviewlibrary'
 include ':nfcreadermaster'

@@ -15,8 +15,6 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Parcelable;
 import android.provider.Settings;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
@@ -25,6 +23,7 @@ import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.Toolbar;
 
 import com.daililol.cameraviewlibrary.CameraView;
 import com.geniuslead.attendance.R;
@@ -72,6 +71,10 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
     String uploadPhoto = "";
     AttendanceResultSubmission attendanceResultSubmission;
     ArrayList<Students> studentsArrayList = null;
+    @Bind(R.id.webview)
+    WebView webview;
+    String decodedUrl = "";
+    int attendanceCount = 0;
     private NfcAdapter mAdapter;
     private PendingIntent mPendingIntent;
     private AlertDialog mDialog;
@@ -79,15 +82,10 @@ public class ReadCardActivity extends AppCompatActivity implements CameraView.Ph
     private int cameraId = 0;
     private CameraView cameraView;
     private ProgressDialog progressDialog;
-    @Bind(R.id.webview)
-    WebView webview;
-    String decodedUrl = "";
     private String decodedSuffix = "";
     private String decodedStudentId;
     private boolean isRedirected = false;
     private Boolean processingDecoding = false;
-
-    int attendanceCount = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
